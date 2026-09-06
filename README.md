@@ -1,10 +1,10 @@
-[Uploading alkkagi.html…]()
 <!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
 <title>보드게임 아케이드</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
   :root{
     --bg-deep:#1b140f; --bg-mid:#2b2017; --panel:#332417;
@@ -41,6 +41,55 @@
   .card .emoji{ font-size:34px; display:block; margin-bottom:6px; }
   .card .name{ font-size:15px; font-weight:800; color:var(--ink); }
   .card .desc{ font-size:11px; color:var(--ink-dim); margin-top:4px; line-height:1.4; }
+
+  /* Mode select */
+  #modeScreen{ display:none; flex-direction:column; align-items:center; gap:14px; width:100%; max-width:420px; margin-top:6vh; }
+  #modeScreen h2{ margin:0; font-size:20px; color:var(--accent); font-weight:800; }
+  #modeScreen .modeBtns{ display:flex; flex-direction:column; gap:10px; width:100%; padding:0 12px; }
+  .modeBtn{
+    font-family:inherit; font-size:15px; font-weight:700; color:var(--ink);
+    background:linear-gradient(180deg,var(--panel),#241a10);
+    border:1px solid rgba(255,255,255,.12); border-radius:12px;
+    padding:14px 16px; cursor:pointer; text-align:left;
+    box-shadow:0 3px 8px rgba(0,0,0,.3);
+  }
+  .modeBtn:active{ transform:scale(.98); }
+  .modeBtn .mTitle{ display:block; font-size:16px; margin-bottom:2px; }
+  .modeBtn .mDesc{ display:block; font-size:11px; color:var(--ink-dim); font-weight:500; }
+  .modeBtn.ai .mTitle{ color:var(--bad); }
+  .modeBtn.p2 .mTitle{ color:var(--good); }
+  #modeBack{
+    font-family:inherit; font-size:12px; font-weight:700; color:var(--ink-dim);
+    background:transparent; border:1px solid rgba(255,255,255,.12);
+    border-radius:999px; padding:6px 14px; cursor:pointer; margin-top:6px;
+  }
+  .modeBtn.online .mTitle{ color:#6ec8ff; }
+
+  /* Online lobby */
+  #onlineScreen{ display:none; flex-direction:column; align-items:center; gap:12px; width:100%; max-width:420px; margin-top:4vh; padding:0 12px; }
+  #onlineScreen h2{ margin:0; font-size:18px; color:var(--accent); font-weight:800; }
+  #onlineStatus{ font-size:12px; color:var(--ink-dim); min-height:18px; text-align:center; }
+  #onlineStatus.ok{ color:var(--good); }
+  #onlineStatus.err{ color:var(--bad); }
+  #roomCodeBox{
+    font-size:28px; font-weight:900; letter-spacing:4px; color:var(--accent);
+    background:rgba(0,0,0,.35); border:1px dashed rgba(232,163,61,.5);
+    border-radius:12px; padding:12px 20px; min-width:160px; text-align:center;
+  }
+  #joinInput{
+    font-family:inherit; font-size:16px; font-weight:700; letter-spacing:2px;
+    text-align:center; width:100%; max-width:220px; padding:10px 12px;
+    border-radius:10px; border:1px solid rgba(255,255,255,.2);
+    background:rgba(0,0,0,.3); color:var(--ink); outline:none;
+  }
+  .onlineActions{ display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
+  #netBadge{
+    position:absolute; top:8px; right:8px; font-size:10px; font-weight:700;
+    padding:3px 8px; border-radius:999px; background:rgba(0,0,0,.5);
+    color:var(--ink-dim); display:none; z-index:5;
+  }
+  #netBadge.on{ display:block; color:var(--good); }
+  #netBadge.wait{ display:block; color:var(--accent); }
 
   /* ---- Game screen ---- */
   #gameScreen{ display:none; flex-direction:column; align-items:center; width:100%; height:100%; gap:8px; }
@@ -84,22 +133,63 @@
 
   <div id="menuScreen">
     <h1>보드게임 아케이드</h1>
-    <p class="sub">게임을 선택하세요 · 상대는 컴퓨터(AI)입니다</p>
+    <p class="sub">게임을 선택하세요</p>
     <div id="cardGrid">
       <div class="card" data-game="alkkagi"><span class="emoji">⚪</span><div class="name">알까기</div><div class="desc">돌을 튕겨 상대 돌을<br>판 밖으로 밀어내기</div></div>
-      <div class="card" data-game="baduk"><span class="emoji">⚫</span><div class="name">바둑</div><div class="desc">18×18 · 상대 돌을 에워싸<br>더 넓은 집을 차지하기</div></div>
+      <div class="card" data-game="baduk"><span class="emoji">⚫</span><div class="name">바둑</div><div class="desc">9×9 · 상대 돌을 에워싸<br>더 넓은 집을 차지하기</div></div>
       <div class="card" data-game="janggi"><span class="emoji">🀄</span><div class="name">장기</div><div class="desc">상대 궁(장군)을<br>먼저 잡기</div></div>
-      <div class="card" data-game="omok"><span class="emoji">⚫⚪</span><div class="name">오목</div><div class="desc">18×18 · 가로·세로·대각선<br>5개를 먼저 잇기</div></div>
+      <div class="card" data-game="omok"><span class="emoji">⚫⚪</span><div class="name">오목</div><div class="desc">15×15 · 가로·세로·대각선<br>5개를 먼저 잇기</div></div>
     </div>
+  </div>
+
+  <div id="modeScreen">
+    <h2 id="modeGameName">게임</h2>
+    <div class="modeBtns">
+      <button class="modeBtn ai" data-mode="ai">
+        <span class="mTitle">🤖 컴퓨터와 대결</span>
+        <span class="mDesc">AI와 1:1로 플레이합니다</span>
+      </button>
+      <button class="modeBtn p2" data-mode="p2">
+        <span class="mTitle">👥 2인 플레이 (같은 기기)</span>
+        <span class="mDesc">한 화면에서 두 명이 번갈아 플레이</span>
+      </button>
+      <button class="modeBtn online" data-mode="online">
+        <span class="mTitle">🌐 온라인 멀티플레이</span>
+        <span class="mDesc">방 코드로 친구와 실시간 대결 (P2P)</span>
+      </button>
+    </div>
+    <button id="modeBack">← 게임 선택으로</button>
+  </div>
+
+  <div id="onlineScreen">
+    <h2 id="onlineGameName">온라인</h2>
+    <div id="onlineStatus">연결 준비 중…</div>
+    <div id="hostPanel" style="display:none; flex-direction:column; align-items:center; gap:10px; width:100%;">
+      <p style="margin:0; font-size:12px; color:var(--ink-dim);">방 코드를 친구에게 공유하세요</p>
+      <div id="roomCodeBox">----</div>
+      <button class="ctlBtn" id="copyCodeBtn">코드 복사</button>
+      <p style="margin:0; font-size:11px; color:var(--ink-dim);">상대가 참가하면 자동으로 시작합니다</p>
+    </div>
+    <div id="joinPanel" style="display:none; flex-direction:column; align-items:center; gap:10px; width:100%;">
+      <p style="margin:0; font-size:12px; color:var(--ink-dim);">방 코드를 입력하세요</p>
+      <input id="joinInput" type="text" maxlength="20" placeholder="방 코드" autocomplete="off" spellcheck="false">
+      <button class="ctlBtn" id="joinBtn">참가하기</button>
+    </div>
+    <div class="onlineActions">
+      <button class="ctlBtn" id="createRoomBtn">방 만들기</button>
+      <button class="ctlBtn secondary" id="showJoinBtn">방 참가</button>
+    </div>
+    <button id="onlineBack" class="modeBtn" style="margin-top:8px; text-align:center; padding:8px;">← 모드 선택으로</button>
   </div>
 
   <div id="gameScreen">
     <div id="topbar">
-      <button id="backBtn">← 게임 선택</button>
+      <button id="backBtn">← 뒤로</button>
       <div id="gameTitle"></div>
       <div id="turnInfo">-</div>
     </div>
     <div id="boardWrap">
+      <div id="netBadge">온라인</div>
       <canvas id="c" width="600" height="600"></canvas>
       <div id="overlay"><div id="overlayText"></div>
         <div id="overlayBtns">
@@ -123,6 +213,8 @@ const ctx = canvas.getContext('2d');
 const W = canvas.width, H = canvas.height;
 
 const menuScreen = document.getElementById('menuScreen');
+const modeScreen = document.getElementById('modeScreen');
+const onlineScreen = document.getElementById('onlineScreen');
 const gameScreen = document.getElementById('gameScreen');
 const gameTitleEl = document.getElementById('gameTitle');
 const turnInfoEl = document.getElementById('turnInfo');
@@ -131,6 +223,13 @@ const overlayTextEl = document.getElementById('overlayText');
 const hintEl = document.getElementById('hint');
 const controlsEl = document.getElementById('controls');
 const aiThinkingEl = document.getElementById('aiThinking');
+const modeGameNameEl = document.getElementById('modeGameName');
+const onlineGameNameEl = document.getElementById('onlineGameName');
+const onlineStatusEl = document.getElementById('onlineStatus');
+const roomCodeBox = document.getElementById('roomCodeBox');
+const netBadge = document.getElementById('netBadge');
+const hostPanel = document.getElementById('hostPanel');
+const joinPanel = document.getElementById('joinPanel');
 
 function roundRect(ctx,x,y,w,h,r){
   ctx.beginPath(); ctx.moveTo(x+r,y);
@@ -157,31 +256,223 @@ function rand(a,b){ return a+Math.random()*(b-a); }
 function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
 
 let current = null;
+let selectedGame = null;
+let playMode = 'ai'; // 'ai' | 'p2' | 'online'
+
+const GAME_NAMES = { alkkagi:'알까기', baduk:'바둑', janggi:'장기', omok:'오목' };
+
 function setTurnInfo(text, who){
   turnInfoEl.textContent = text;
-  turnInfoEl.className = who==='you' ? 'you' : (who==='ai' ? 'ai' : '');
+  turnInfoEl.className = who==='you' ? 'you' : (who==='ai' || who==='p2' || who==='opp' ? 'ai' : '');
 }
 function showOverlay(text){ overlayTextEl.textContent = text; overlayEl.classList.add('show'); }
 function hideOverlay(){ overlayEl.classList.remove('show'); }
 
-function launch(key){
-  menuScreen.style.display='none';
-  gameScreen.style.display='flex';
-  hideOverlay(); aiThinkingEl.textContent=''; controlsEl.innerHTML='';
-  current = makeGame(key);
+/* ========== Networking (PeerJS / WebRTC DataChannel) ========== */
+const Net = {
+  peer: null,
+  conn: null,
+  isHost: false,
+  roomId: null,
+  ready: false,
+  handlers: {},
+  setStatus(msg, cls){
+    onlineStatusEl.textContent = msg;
+    onlineStatusEl.className = cls || '';
+  },
+  destroy(){
+    try{ if(this.conn) this.conn.close(); }catch(e){}
+    try{ if(this.peer) this.peer.destroy(); }catch(e){}
+    this.peer = null; this.conn = null; this.ready = false; this.isHost = false; this.roomId = null;
+    this.handlers = {};
+    netBadge.className = '';
+  },
+  send(obj){
+    if(this.conn && this.conn.open){
+      try{ this.conn.send(obj); }catch(e){ console.warn(e); }
+    }
+  },
+  on(type, fn){ this.handlers[type] = fn; },
+  _dispatch(data){
+    if(!data || !data.type) return;
+    const fn = this.handlers[data.type];
+    if(fn) fn(data);
+  },
+  _wireConn(c){
+    this.conn = c;
+    c.on('open', ()=>{
+      this.ready = true;
+      this.setStatus('상대와 연결됨! 곧 시작합니다…', 'ok');
+      netBadge.className = 'on';
+      netBadge.textContent = '온라인 연결됨';
+      // host starts the game
+      if(this.isHost){
+        setTimeout(()=>{
+          this.send({ type:'start', game: selectedGame });
+          launch(selectedGame, 'online');
+        }, 400);
+      }
+    });
+    c.on('data', (data)=> this._dispatch(data));
+    c.on('close', ()=>{
+      this.ready = false;
+      this.setStatus('연결이 끊겼습니다', 'err');
+      netBadge.className = 'wait';
+      netBadge.textContent = '연결 끊김';
+      if(current && playMode==='online'){
+        showOverlay('상대와 연결이 끊겼습니다');
+      }
+    });
+    c.on('error', (err)=>{
+      this.setStatus('연결 오류: '+(err&&err.type||'unknown'), 'err');
+    });
+  },
+  createRoom(){
+    this.destroy();
+    this.isHost = true;
+    this.setStatus('방 만드는 중…');
+    hostPanel.style.display = 'flex';
+    joinPanel.style.display = 'none';
+    // short-ish id
+    const id = 'bg'+Math.random().toString(36).slice(2,8);
+    this.peer = new Peer(id, { debug: 1 });
+    this.peer.on('open', (rid)=>{
+      this.roomId = rid;
+      roomCodeBox.textContent = rid;
+      this.setStatus('방 생성됨 · 상대를 기다리는 중…', 'ok');
+      netBadge.className = 'wait';
+      netBadge.textContent = '대기 중';
+    });
+    this.peer.on('connection', (c)=> this._wireConn(c));
+    this.peer.on('error', (err)=>{
+      this.setStatus('Peer 오류: '+(err&&err.type||err), 'err');
+    });
+  },
+  joinRoom(code){
+    code = (code||'').trim();
+    if(!code){ this.setStatus('방 코드를 입력하세요', 'err'); return; }
+    this.destroy();
+    this.isHost = false;
+    this.setStatus('연결 중…');
+    hostPanel.style.display = 'none';
+    joinPanel.style.display = 'flex';
+    this.peer = new Peer({ debug: 1 });
+    this.peer.on('open', ()=>{
+      const c = this.peer.connect(code, { reliable: true });
+      this._wireConn(c);
+    });
+    this.peer.on('error', (err)=>{
+      this.setStatus('참가 실패: '+(err&&err.type||'방 코드를 확인하세요'), 'err');
+    });
+  }
+};
+
+Net.on('start', (msg)=>{
+  if(!Net.isHost && msg.game){
+    launch(msg.game, 'online');
+  }
+});
+
+function showModeSelect(key){
+  selectedGame = key;
+  modeGameNameEl.textContent = GAME_NAMES[key] || key;
+  menuScreen.style.display = 'none';
+  modeScreen.style.display = 'flex';
+  onlineScreen.style.display = 'none';
+  gameScreen.style.display = 'none';
+}
+function showOnlineLobby(){
+  onlineGameNameEl.textContent = (GAME_NAMES[selectedGame]||'') + ' · 온라인';
+  onlineStatusEl.textContent = '방 만들기 또는 참가를 선택하세요';
+  onlineStatusEl.className = '';
+  hostPanel.style.display = 'none';
+  joinPanel.style.display = 'none';
+  document.getElementById('joinInput').value = '';
+  menuScreen.style.display = 'none';
+  modeScreen.style.display = 'none';
+  onlineScreen.style.display = 'flex';
+  gameScreen.style.display = 'none';
+}
+function launch(key, mode){
+  selectedGame = key;
+  playMode = mode || 'ai';
+  menuScreen.style.display = 'none';
+  modeScreen.style.display = 'none';
+  onlineScreen.style.display = 'none';
+  gameScreen.style.display = 'flex';
+  hideOverlay(); aiThinkingEl.textContent = ''; controlsEl.innerHTML = '';
+  if(playMode !== 'online') Net.destroy();
+  current = makeGame(key, playMode);
   current.init();
 }
 function backToMenu(){
   current = null;
-  gameScreen.style.display='none';
-  menuScreen.style.display='flex';
+  selectedGame = null;
+  Net.destroy();
+  gameScreen.style.display = 'none';
+  modeScreen.style.display = 'none';
+  onlineScreen.style.display = 'none';
+  menuScreen.style.display = 'flex';
 }
+function backToMode(){
+  current = null;
+  if(playMode === 'online') Net.destroy();
+  gameScreen.style.display = 'none';
+  onlineScreen.style.display = 'none';
+  modeScreen.style.display = 'flex';
+}
+
 document.querySelectorAll('.card').forEach(c=>{
-  c.addEventListener('click', ()=> launch(c.getAttribute('data-game')));
+  c.addEventListener('click', ()=> showModeSelect(c.getAttribute('data-game')));
 });
-document.getElementById('backBtn').addEventListener('click', backToMenu);
+document.querySelectorAll('#modeScreen .modeBtn').forEach(b=>{
+  b.addEventListener('click', ()=> {
+    if(!selectedGame) return;
+    const m = b.getAttribute('data-mode');
+    if(m === 'online') showOnlineLobby();
+    else launch(selectedGame, m);
+  });
+});
+document.getElementById('modeBack').addEventListener('click', backToMenu);
+document.getElementById('onlineBack').addEventListener('click', ()=>{
+  Net.destroy();
+  onlineScreen.style.display = 'none';
+  modeScreen.style.display = 'flex';
+});
+document.getElementById('createRoomBtn').addEventListener('click', ()=> Net.createRoom());
+document.getElementById('showJoinBtn').addEventListener('click', ()=>{
+  hostPanel.style.display = 'none';
+  joinPanel.style.display = 'flex';
+  onlineStatusEl.textContent = '방 코드를 입력하세요';
+  onlineStatusEl.className = '';
+});
+document.getElementById('joinBtn').addEventListener('click', ()=>{
+  Net.joinRoom(document.getElementById('joinInput').value);
+});
+document.getElementById('joinInput').addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter') Net.joinRoom(document.getElementById('joinInput').value);
+});
+document.getElementById('copyCodeBtn').addEventListener('click', ()=>{
+  const t = roomCodeBox.textContent;
+  if(navigator.clipboard) navigator.clipboard.writeText(t).then(()=> Net.setStatus('코드가 복사되었습니다', 'ok'));
+  else Net.setStatus('코드를 직접 복사하세요: '+t, 'ok');
+});
+document.getElementById('backBtn').addEventListener('click', ()=>{
+  if(onlineScreen.style.display === 'flex'){
+    Net.destroy();
+    onlineScreen.style.display = 'none';
+    modeScreen.style.display = 'flex';
+  } else if(modeScreen.style.display === 'flex') backToMenu();
+  else backToMode();
+});
 document.getElementById('menuBtn2').addEventListener('click', backToMenu);
-document.getElementById('retryBtn').addEventListener('click', ()=>{ if(current && current.key) launch(current.key); });
+document.getElementById('retryBtn').addEventListener('click', ()=>{
+  if(playMode === 'online'){
+    showOverlay('온라인 게임은 다시 방을 만들어 주세요');
+    return;
+  }
+  if(current && current.key) launch(current.key, playMode);
+});
 
 function getPos(evt){
   const rect = canvas.getBoundingClientRect();
@@ -209,17 +500,21 @@ mainLoop();
 /* =========================================================
    GAME FACTORY
    ========================================================= */
-function makeGame(key){
-  if(key==='alkkagi') return AlkkagiGame();
-  if(key==='baduk') return BadukGame();
-  if(key==='omok') return OmokGame();
-  if(key==='janggi') return JanggiGame();
+function makeGame(key, mode){
+  if(key==='alkkagi') return AlkkagiGame(mode);
+  if(key==='baduk') return BadukGame(mode);
+  if(key==='omok') return OmokGame(mode);
+  if(key==='janggi') return JanggiGame(mode);
 }
 
 /* =========================================================
-   1) ALKKAGI  (vs AI)
+   1) ALKKAGI
    ========================================================= */
-function AlkkagiGame(){
+function AlkkagiGame(mode){
+  const isP2 = mode === 'p2';
+  const isOnline = mode === 'online';
+  const amHost = isOnline ? Net.isHost : true;
+  const myColor = isOnline ? (amHost ? 'white' : 'black') : 'white';
   const G = { key:'alkkagi' };
   const PAD=66, DIV=12, BX=PAD, BY=PAD, BS=W-PAD*2, CELL=BS/DIV;
   const STONE_R=15, OUT_MARGIN=26, FRICTION=0.983, STOP_SPEED=0.045;
@@ -228,16 +523,38 @@ function AlkkagiGame(){
 
   function gridPt(cx,cy){ return {x:BX+cx*CELL, y:BY+cy*CELL}; }
 
+  function updateTurnUI(){
+    if(isOnline){
+      if(turn===myColor) setTurnInfo('내 차례 ('+(myColor==='white'?'백':'흑')+')','you');
+      else setTurnInfo('상대 차례','opp');
+    } else if(isP2){
+      if(turn==='white') setTurnInfo('P1 차례 (백)','you');
+      else setTurnInfo('P2 차례 (흑)','p2');
+    } else setTurnInfo(turn==='white'?'내 차례 (백)':'AI 차례 (흑)', turn==='white'?'you':'ai');
+  }
   G.init = function(){
-    gameTitleEl.textContent='알까기';
-    hintEl.textContent='내 돌(백)을 당겼다가 놓으면 튕겨 나갑니다. 상대 돌을 판 밖으로 밀어내세요.';
+    if(isOnline) gameTitleEl.textContent = '알까기 · 온라인';
+    else if(isP2) gameTitleEl.textContent = '알까기 · 2인';
+    else gameTitleEl.textContent = '알까기';
+    if(isOnline) hintEl.textContent = (amHost?'당신=백':'당신=흑')+' · 자기 돌을 당겼다가 놓으면 튕깁니다. 상대 돌을 판 밖으로 밀어내세요.';
+    else if(isP2) hintEl.textContent = '플레이어1(백) / 플레이어2(흑). 자기 돌을 당겼다가 놓으면 튕겨 나갑니다. 상대 돌을 판 밖으로 밀어내세요.';
+    else hintEl.textContent = '내 돌(백)을 당겼다가 놓으면 튕겨 나갑니다. 상대 돌을 판 밖으로 밀어내세요.';
     stones=[];
     const wp=[[4,3],[6,2],[8,3],[5,4],[7,4],[6,5]];
     const bp=[[4,9],[6,10],[8,9],[5,8],[7,8],[6,7]];
-    wp.forEach((p,i)=>{ const g=gridPt(p[0],p[1]); stones.push({x:g.x,y:g.y,vx:0,vy:0,color:'white',alive:true,fallT:0}); });
-    bp.forEach((p,i)=>{ const g=gridPt(p[0],p[1]); stones.push({x:g.x,y:g.y,vx:0,vy:0,color:'black',alive:true,fallT:0}); });
+    wp.forEach((p)=>{ const g=gridPt(p[0],p[1]); stones.push({x:g.x,y:g.y,vx:0,vy:0,color:'white',alive:true,fallT:0}); });
+    bp.forEach((p)=>{ const g=gridPt(p[0],p[1]); stones.push({x:g.x,y:g.y,vx:0,vy:0,color:'black',alive:true,fallT:0}); });
     turn='white'; moving=false; gameOver=false; drag=null;
-    setTurnInfo('내 차례 (백)','you');
+    updateTurnUI();
+    if(isOnline){
+      Net.on('shot', (msg)=>{
+        if(gameOver||moving) return;
+        const s = stones[msg.idx];
+        if(!s || !s.alive || s.color!==turn) return;
+        s.vx = msg.vx; s.vy = msg.vy;
+        moving = true;
+      });
+    }
   };
 
   function anyMoving(){ return stones.some(s=>s.alive && (Math.abs(s.vx)>STOP_SPEED||Math.abs(s.vy)>STOP_SPEED)); }
@@ -276,17 +593,24 @@ function AlkkagiGame(){
     const bc=stones.filter(s=>s.color==='black'&&s.alive).length;
     if(wc===0||bc===0){
       gameOver=true;
-      showOverlay((wc===0?'상대(흑)':'나(백)')+' 승리!');
+      if(isOnline){
+        const winnerColor = wc===0 ? 'black' : 'white';
+        showOverlay((winnerColor===myColor?'나':'상대')+' 승리!');
+      } else if(isP2){
+        showOverlay((wc===0 ? '플레이어2 (흑)' : '플레이어1 (백)') + ' 승리!');
+      } else {
+        showOverlay((wc===0?'상대(흑)':'나(백)')+' 승리!');
+      }
       setTurnInfo('게임 종료','');
       return;
     }
-    turn = turn==='white' ? 'black':'white';
-    if(turn==='black'){ setTurnInfo('AI 차례 (흑)','ai'); aiTimer=setTimeout(aiMove, 650); }
-    else setTurnInfo('내 차례 (백)','you');
+    turn = turn==='white' ? 'black' : 'white';
+    updateTurnUI();
+    if(!isOnline && !isP2 && turn==='black') aiTimer=setTimeout(aiMove, 650);
   }
 
   function aiMove(){
-    if(gameOver) return;
+    if(gameOver || isP2 || isOnline) return;
     const mine = stones.filter(s=>s.color==='black'&&s.alive);
     const enemy = stones.filter(s=>s.color==='white'&&s.alive);
     if(mine.length===0||enemy.length===0) return;
@@ -343,10 +667,14 @@ function AlkkagiGame(){
     drawAim();
   };
   G.onDown = function(p){
-    if(gameOver||moving||turn!=='white') return;
-    for(const s of stones){
-      if(!s.alive||s.fallT>0||s.color!=='white') continue;
-      if(Math.hypot(s.x-p.x,s.y-p.y)<=STONE_R*1.5){ drag={stone:s,startX:p.x,startY:p.y,curX:p.x,curY:p.y}; return; }
+    if(gameOver||moving) return;
+    if(isOnline){ if(turn!==myColor) return; }
+    else if(!isP2 && turn!=='white') return;
+    const allowed = (isP2 || isOnline) ? turn : 'white';
+    for(let i=0;i<stones.length;i++){
+      const s = stones[i];
+      if(!s.alive||s.fallT>0||s.color!==allowed) continue;
+      if(Math.hypot(s.x-p.x,s.y-p.y)<=STONE_R*1.5){ drag={stone:s, idx:i, startX:p.x,startY:p.y,curX:p.x,curY:p.y}; return; }
     }
   };
   G.onMove = function(p){ if(drag){ drag.curX=p.x; drag.curY=p.y; } };
@@ -356,7 +684,9 @@ function AlkkagiGame(){
     const dist=Math.min(Math.hypot(dx,dy),MAX_PULL);
     if(dist>6){
       const ang=Math.atan2(dy,dx); const speed=Math.min(dist*POWER,MAX_SPEED);
-      drag.stone.vx=-Math.cos(ang)*speed; drag.stone.vy=-Math.sin(ang)*speed; moving=true;
+      const vx=-Math.cos(ang)*speed, vy=-Math.sin(ang)*speed;
+      drag.stone.vx=vx; drag.stone.vy=vy; moving=true;
+      if(isOnline) Net.send({ type:'shot', idx:drag.idx, vx, vy });
     }
     drag=null;
   };
@@ -364,12 +694,16 @@ function AlkkagiGame(){
 }
 
 /* =========================================================
-   2) BADUK (Go, 9x9, vs AI)
+   2) BADUK (Go, 9x9)
    ========================================================= */
-function BadukGame(){
+function BadukGame(mode){
+  const isP2 = mode === 'p2';
+  const isOnline = mode === 'online';
+  const amHost = isOnline ? Net.isHost : true;
+  const myColor = isOnline ? (amHost ? 1 : 2) : 1;
   const G = { key:'baduk' };
-  const N=18, PAD=32, BS=W-PAD*2, CELL=BS/(N-1), BX=PAD, BY=PAD;
-  const STONE_R = CELL*0.46;
+  const N=9, PAD=40, BS=W-PAD*2, CELL=BS/(N-1), BX=PAD, BY=PAD;
+  const STONE_R = CELL*0.44;
   let board, turn, history, passes, gameOver, locked;
 
   function boardStr(b){ return b.map(row=>row.join('')).join('/'); }
@@ -404,27 +738,53 @@ function BadukGame(){
     return {legal:true, board:nb, captured, ownLibs:ownGrp.liberties.size};
   }
 
+  function updateTurnUI(){
+    if(isOnline){
+      if(turn===myColor) setTurnInfo('내 차례 ('+(myColor===1?'흑':'백')+')','you');
+      else setTurnInfo('상대 차례','opp');
+    } else if(isP2){
+      if(turn===1) setTurnInfo('P1 차례 (흑)','you');
+      else setTurnInfo('P2 차례 (백)','p2');
+    } else setTurnInfo(turn===1?'내 차례 (흑)':'AI 차례 (백)', turn===1?'you':'ai');
+  }
   G.init = function(){
-    gameTitleEl.textContent='바둑 (18×18)';
-    hintEl.textContent='교차점을 눌러 돌을 놓으세요. 상대 돌을 완전히 에워싸면 잡을 수 있습니다.';
+    if(isOnline) gameTitleEl.textContent = '바둑 (9×9) · 온라인';
+    else if(isP2) gameTitleEl.textContent = '바둑 (9×9) · 2인';
+    else gameTitleEl.textContent = '바둑 (9×9)';
+    if(isOnline) hintEl.textContent = (amHost?'당신=흑(선공)':'당신=백')+' · 교차점 클릭 / 패스. 두 번 연속 패스 시 집계산.';
+    else if(isP2) hintEl.textContent = '교차점을 눌러 돌을 놓으세요. P1(흑) / P2(백). 두 번 연속 패스하면 집계산으로 종료됩니다.';
+    else hintEl.textContent = '교차점을 눌러 돌을 놓으세요. 상대 돌을 완전히 에워싸면 잡을 수 있습니다. 두 번 연속 패스하면 집계산으로 종료됩니다.';
     board = Array.from({length:N},()=>new Array(N).fill(0));
     turn=1; history=[boardStr(board)]; passes=0; gameOver=false; locked=false;
-    setTurnInfo('내 차례 (흑)','you');
+    updateTurnUI();
     controlsEl.innerHTML='';
     const passBtn=document.createElement('button'); passBtn.className='ctlBtn'; passBtn.textContent='패스';
-    passBtn.addEventListener('click', ()=>doPass(1));
+    passBtn.addEventListener('click', ()=>{
+      if(isOnline && turn!==myColor) return;
+      doPass(turn, false);
+    });
     controlsEl.appendChild(passBtn);
+    if(isOnline){
+      Net.on('move', (msg)=>{
+        if(gameOver) return;
+        if(msg.pass){ doPass(msg.color, true); return; }
+        if(msg.color===turn && placeAt(msg.r,msg.c,msg.color)){
+          switchTurn(); updateTurnUI();
+        }
+      });
+    }
   };
 
   function switchTurn(){ turn = turn===1?2:1; }
 
-  function doPass(color){
+  function doPass(color, fromNet){
     if(gameOver||locked||turn!==color) return;
     passes++;
     if(passes>=2){ finishGame(); return; }
     switchTurn();
-    if(turn===2){ setTurnInfo('AI 차례 (백)','ai'); locked=true; setTimeout(aiMove,600); }
-    else setTurnInfo('내 차례 (흑)','you');
+    updateTurnUI();
+    if(!fromNet && isOnline) Net.send({ type:'move', pass:true, color });
+    if(!isOnline && !isP2 && turn===2){ locked=true; setTimeout(aiMove,600); }
   }
 
   function placeAt(r,c,color){
@@ -456,23 +816,27 @@ function BadukGame(){
     const blackTotal = stoneCount[0]+terr[0];
     const whiteTotal = stoneCount[1]+terr[1]+6.5;
     gameOver=true;
-    const winner = blackTotal>whiteTotal ? '나(흑)' : 'AI(백)';
+    let winner;
+    if(isOnline) winner = blackTotal>whiteTotal ? (myColor===1?'나':'상대')+' (흑)' : (myColor===2?'나':'상대')+' (백)';
+    else if(isP2) winner = blackTotal>whiteTotal ? '플레이어1 (흑)' : '플레이어2 (백)';
+    else winner = blackTotal>whiteTotal ? '나(흑)' : 'AI(백)';
     showOverlay(winner+' 승리!\n흑 '+blackTotal.toFixed(1)+' : 백 '+whiteTotal.toFixed(1));
     setTurnInfo('게임 종료','');
   }
   function finishGame(){ scoreAndFinish(); }
 
   function aiMove(){
-    if(gameOver) return;
+    if(gameOver || isP2 || isOnline) return;
     let best=null, bestScore=-Infinity;
+    const mid = (N-1)/2;
     for(let r=0;r<N;r++) for(let c=0;c<N;c++){
       const res=tryMove(board,r,c,2);
       if(!res.legal) continue;
       const str=boardStr(res.board);
       if(history.length>=2 && str===history[history.length-2]) continue;
-      let score = res.captured*18 + res.ownLibs*2 + rand(0,4);
-      if(res.ownLibs===1 && res.captured===0) score-=25;
-      const centerDist = Math.hypot(r-8.5,c-8.5); score += (10-centerDist)*0.4;
+      let score = res.captured*20 + res.ownLibs*2.5 + rand(0,4);
+      if(res.ownLibs===1 && res.captured===0) score-=30;
+      const centerDist = Math.hypot(r-mid,c-mid); score += (mid+1-centerDist)*0.6;
       if(score>bestScore){ bestScore=score; best={r,c}; }
     }
     locked=false;
@@ -495,9 +859,9 @@ function BadukGame(){
       ctx.beginPath(); ctx.moveTo(x,BY); ctx.lineTo(x,BY+(N-1)*CELL); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(BX,y); ctx.lineTo(BX+(N-1)*CELL,y); ctx.stroke();
     }
-    [[3,3],[3,14],[14,3],[14,14],[3,9],[9,3],[14,9],[9,14]].forEach(p=>{
+    [[2,2],[2,6],[6,2],[6,6],[4,4]].forEach(p=>{
       const x=BX+p[1]*CELL, y=BY+p[0]*CELL;
-      ctx.beginPath(); ctx.arc(x,y,3.5,0,Math.PI*2); ctx.fillStyle='rgba(90,54,22,.6)'; ctx.fill();
+      ctx.beginPath(); ctx.arc(x,y,3.2,0,Math.PI*2); ctx.fillStyle='rgba(90,54,22,.65)'; ctx.fill();
     });
     for(let r=0;r<N;r++) for(let c=0;c<N;c++){
       if(board[r][c]===0) continue;
@@ -506,26 +870,35 @@ function BadukGame(){
     }
   };
   G.onDown=function(p){
-    if(gameOver||locked||turn!==1) return;
+    if(gameOver||locked) return;
+    if(isOnline){ if(turn!==myColor) return; }
+    else if(!isP2 && turn!==1) return;
     const c = Math.round((p.x-BX)/CELL), r = Math.round((p.y-BY)/CELL);
     if(!inB(r,c)) return;
     const dist = Math.hypot(BX+c*CELL-p.x, BY+r*CELL-p.y);
     if(dist>CELL*0.5) return;
-    if(placeAt(r,c,1)){
+    const color = turn;
+    if(placeAt(r,c,color)){
       switchTurn();
-      if(!gameOver){ setTurnInfo('AI 차례 (백)','ai'); locked=true; setTimeout(aiMove,600); }
+      updateTurnUI();
+      if(isOnline) Net.send({ type:'move', r, c, color });
+      if(!isOnline && !isP2 && turn===2){ locked=true; setTimeout(aiMove,600); }
     }
   };
   return G;
 }
 
 /* =========================================================
-   3) OMOK (Gomoku, 15x15, vs AI)
+   3) OMOK (Gomoku, 15x15)
    ========================================================= */
-function OmokGame(){
+function OmokGame(mode){
+  const isP2 = mode === 'p2';
+  const isOnline = mode === 'online';
+  const amHost = isOnline ? Net.isHost : true; // host = black = P1
+  const myColor = isOnline ? (amHost ? 1 : 2) : 1;
   const G = { key:'omok' };
-  const N=18, PAD=28, BS=W-PAD*2, CELL=BS/(N-1), BX=PAD, BY=PAD;
-  const STONE_R = CELL*0.44;
+  const N=15, PAD=32, BS=W-PAD*2, CELL=BS/(N-1), BX=PAD, BY=PAD;
+  const STONE_R = CELL*0.43;
   let board, turn, gameOver, locked, lastMove;
 
   function inB(r,c){ return r>=0&&r<N&&c>=0&&c<N; }
@@ -566,13 +939,52 @@ function OmokGame(){
   }
 
   G.init=function(){
-    gameTitleEl.textContent='오목 (18×18)';
-    hintEl.textContent='교차점을 눌러 돌을 놓으세요. 가로·세로·대각선 중 하나로 5개를 먼저 연결하면 승리!';
+    if(isOnline) gameTitleEl.textContent = '오목 (15×15) · 온라인';
+    else if(isP2) gameTitleEl.textContent = '오목 (15×15) · 2인';
+    else gameTitleEl.textContent = '오목 (15×15)';
+    if(isOnline) hintEl.textContent = (amHost?'당신=흑(선공)':'당신=백')+' · 교차점을 눌러 돌을 놓으세요. 5개 연결 시 승리!';
+    else if(isP2) hintEl.textContent = '교차점을 눌러 돌을 놓으세요. P1(흑) / P2(백). 5개를 먼저 연결하면 승리!';
+    else hintEl.textContent = '교차점을 눌러 돌을 놓으세요. 가로·세로·대각선 중 하나로 5개를 먼저 연결하면 승리!';
     board=Array.from({length:N},()=>new Array(N).fill(0));
     turn=1; gameOver=false; locked=false; lastMove=null;
-    setTurnInfo('내 차례 (흑)','you');
+    updateTurnUI();
     controlsEl.innerHTML='';
+    if(isOnline){
+      Net.on('move', (msg)=>{
+        if(gameOver || msg.color !== turn) return;
+        applyPlace(msg.r, msg.c, msg.color, true);
+      });
+    }
   };
+  function updateTurnUI(){
+    if(isOnline){
+      if(turn === myColor) setTurnInfo('내 차례 ('+(myColor===1?'흑':'백')+')','you');
+      else setTurnInfo('상대 차례','opp');
+    } else if(isP2){
+      if(turn===1) setTurnInfo('P1 차례 (흑)','you');
+      else setTurnInfo('P2 차례 (백)','p2');
+    } else setTurnInfo('내 차례 (흑)','you');
+  }
+  function applyPlace(r,c,color, fromNet){
+    if(board[r][c]!==0) return false;
+    board[r][c]=color; lastMove={r,c};
+    if(checkWin(r,c,color)){
+      gameOver=true;
+      if(isOnline) showOverlay((color===myColor?'나':'상대')+' 승리!');
+      else if(isP2) showOverlay((color===1?'플레이어1 (흑)':'플레이어2 (백)')+' 승리!');
+      else showOverlay(color===1?'나(흑) 승리!':'AI(백) 승리!');
+      setTurnInfo('게임 종료','');
+      return true;
+    }
+    let empty=0;
+    for(let rr=0;rr<N;rr++) for(let cc=0;cc<N;cc++) if(board[rr][cc]===0) empty++;
+    if(empty===0){ gameOver=true; showOverlay('무승부'); setTurnInfo('게임 종료',''); return true; }
+    turn = turn===1 ? 2 : 1;
+    updateTurnUI();
+    if(!fromNet && isOnline) Net.send({ type:'move', r, c, color });
+    if(!isOnline && !isP2 && turn===2){ locked=true; setTimeout(aiMove,550); }
+    return true;
+  }
 
   function candidates(){
     const set=new Set(); let any=false;
@@ -589,7 +1001,7 @@ function OmokGame(){
   }
 
   function aiMove(){
-    if(gameOver) return;
+    if(gameOver || isP2 || isOnline) return;
     const cands = candidates();
     let best=null, bestScore=-Infinity;
     for(const {r,c} of cands){
@@ -600,10 +1012,7 @@ function OmokGame(){
     }
     locked=false;
     if(!best) return;
-    board[best.r][best.c]=2; lastMove={r:best.r,c:best.c};
-    if(checkWin(best.r,best.c,2)){ gameOver=true; showOverlay('AI(백) 승리!'); setTurnInfo('게임 종료',''); return; }
-    if(cands.length<=1){ gameOver=true; showOverlay('무승부'); return; }
-    turn=1; setTurnInfo('내 차례 (흑)','you');
+    applyPlace(best.r, best.c, 2, true);
   }
 
   G.step=function(){};
@@ -629,24 +1038,29 @@ function OmokGame(){
     }
   };
   G.onDown=function(p){
-    if(gameOver||locked||turn!==1) return;
+    if(gameOver||locked) return;
+    if(isOnline){
+      if(turn !== myColor) return;
+    } else if(!isP2 && turn!==1) return;
     const c=Math.round((p.x-BX)/CELL), r=Math.round((p.y-BY)/CELL);
     if(!inB(r,c) || board[r][c]!==0) return;
     const dist=Math.hypot(BX+c*CELL-p.x, BY+r*CELL-p.y);
     if(dist>CELL*0.5) return;
-    board[r][c]=1; lastMove={r,c};
-    if(checkWin(r,c,1)){ gameOver=true; showOverlay('나(흑) 승리!'); setTurnInfo('게임 종료',''); return; }
-    turn=2; setTurnInfo('AI 차례 (백)','ai'); locked=true; setTimeout(aiMove,550);
+    applyPlace(r, c, turn, false);
   };
   return G;
 }
 
 /* =========================================================
-   4) JANGGI (Korean Chess, vs AI) - simplified rule set
+   4) JANGGI (Korean Chess) - simplified rule set
       (no check/checkmate enforcement or flying-general rule;
        game ends when a general is captured)
    ========================================================= */
-function JanggiGame(){
+function JanggiGame(mode){
+  const isP2 = mode === 'p2';
+  const isOnline = mode === 'online';
+  const amHost = isOnline ? Net.isHost : true; // host = cho
+  const mySide = isOnline ? (amHost ? 'cho' : 'han') : 'cho';
   const G = { key:'janggi' };
   const COLS=9, ROWS=10;
   const PAD=44; const cw=(W-PAD*2)/(COLS-1), ch=(H-PAD*2)/(ROWS-1);
@@ -854,22 +1268,45 @@ function JanggiGame(){
     sang:{han:'象',cho:'象'}, sa:{han:'士',cho:'士'}, gung:{han:'漢',cho:'楚'}, jol:{han:'兵',cho:'卒'} };
   const VALUE = {gung:0, cha:13, po:7, ma:5, sang:3, sa:3, jol:2};
 
+  function updateTurnUI(){
+    if(isOnline){
+      if(turn===mySide) setTurnInfo('내 차례 ('+(mySide==='cho'?'초':'한')+')','you');
+      else setTurnInfo('상대 차례','opp');
+    } else if(isP2){
+      if(turn==='cho') setTurnInfo('P1 차례 (초)','you');
+      else setTurnInfo('P2 차례 (한)','p2');
+    } else setTurnInfo(turn==='cho'?'내 차례 (초/파랑)':'AI 차례 (한/빨강)', turn==='cho'?'you':'ai');
+  }
   G.init=function(){
-    gameTitleEl.textContent='장기';
-    hintEl.textContent='말을 눌러 선택한 뒤, 표시된 칸으로 이동하세요. 상대 궁을 잡으면 승리! (장군/외통 판정은 단순화되어 있습니다)';
+    if(isOnline) gameTitleEl.textContent = '장기 · 온라인';
+    else if(isP2) gameTitleEl.textContent = '장기 · 2인';
+    else gameTitleEl.textContent = '장기';
+    if(isOnline) hintEl.textContent = (amHost?'당신=초(파랑)':'당신=한(빨강)')+' · 말을 선택 후 이동. 상대 궁을 잡으면 승리!';
+    else if(isP2) hintEl.textContent = '말을 눌러 선택한 뒤 이동하세요. P1(초/파랑) / P2(한/빨강). 상대 궁을 잡으면 승리!';
+    else hintEl.textContent = '말을 눌러 선택한 뒤, 표시된 칸으로 이동하세요. 상대 궁을 잡으면 승리! (장군/외통 판정은 단순화되어 있습니다)';
     board = initBoard();
     turn='cho'; gameOver=false; locked=false; sel=null; legalDests=[];
-    setTurnInfo('내 차례 (초/파랑)','you');
+    updateTurnUI();
     controlsEl.innerHTML='';
+    if(isOnline){
+      Net.on('move', (msg)=>{
+        if(gameOver) return;
+        const ended = applyMove(msg.from, msg.to, true);
+        if(!ended){ turn = turn==='cho'?'han':'cho'; updateTurnUI(); }
+      });
+    }
   };
 
-  function applyMove(from,to){
+  function applyMove(from,to, fromNet){
     const p = board[from[0]][from[1]];
+    if(!p) return false;
     const captured = board[to[0]][to[1]];
     board[to[0]][to[1]] = p; board[from[0]][from[1]] = null;
     if(captured && captured.type==='gung'){
       gameOver=true;
-      showOverlay((p.side==='cho'?'나(초)':'AI(한)')+' 승리!');
+      if(isOnline) showOverlay((p.side===mySide?'나':'상대')+' 승리!');
+      else if(isP2) showOverlay((p.side==='cho'?'플레이어1 (초)':'플레이어2 (한)')+' 승리!');
+      else showOverlay((p.side==='cho'?'나(초)':'AI(한)')+' 승리!');
       setTurnInfo('게임 종료','');
       return true;
     }
@@ -877,7 +1314,7 @@ function JanggiGame(){
   }
 
   function aiMove(){
-    if(gameOver) return;
+    if(gameOver || isP2 || isOnline) return;
     let best=null, bestScore=-Infinity;
     for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
       const p=board[r][c]; if(!p||p.side!=='han') continue;
@@ -892,8 +1329,8 @@ function JanggiGame(){
     }
     locked=false;
     if(!best){ return; }
-    const ended = applyMove(best.from,best.to);
-    if(!ended){ turn='cho'; setTurnInfo('내 차례 (초/파랑)','you'); }
+    const ended = applyMove(best.from,best.to, true);
+    if(!ended){ turn='cho'; updateTurnUI(); }
   }
 
   G.step=function(){};
@@ -936,7 +1373,9 @@ function JanggiGame(){
     }
   };
   G.onDown=function(p){
-    if(gameOver||locked||turn!=='cho') return;
+    if(gameOver||locked) return;
+    if(isOnline){ if(turn!==mySide) return; }
+    else if(!isP2 && turn!=='cho') return;
     const c=Math.round((p.x-BX)/cw), r=Math.round((p.y-BY)/ch);
     if(!inB(r,c)) return;
     const dist=Math.hypot(BX+c*cw-p.x, BY+r*ch-p.y);
@@ -945,13 +1384,21 @@ function JanggiGame(){
     if(sel){
       const isDest = legalDests.some(d=>d[0]===r&&d[1]===c);
       if(isDest){
-        const ended = applyMove(sel,[r,c]);
+        const from = sel.slice();
+        const ended = applyMove(from,[r,c], false);
         sel=null; legalDests=[];
-        if(!ended){ turn='han'; setTurnInfo('AI 차례 (한/빨강)','ai'); locked=true; setTimeout(aiMove,600); }
+        if(!ended){
+          turn = turn==='cho' ? 'han' : 'cho';
+          updateTurnUI();
+          if(isOnline) Net.send({ type:'move', from, to:[r,c] });
+          else if(!isP2){ locked=true; setTimeout(aiMove,600); }
+        } else if(isOnline){
+          Net.send({ type:'move', from, to:[r,c] });
+        }
         return;
       }
     }
-    if(piece && piece.side==='cho'){ sel=[r,c]; legalDests=genMoves(r,c); }
+    if(piece && piece.side===turn){ sel=[r,c]; legalDests=genMoves(r,c); }
     else { sel=null; legalDests=[]; }
   };
   return G;
