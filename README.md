@@ -22,67 +22,104 @@
     color:var(--ink); overflow:hidden; -webkit-user-select:none; user-select:none;
     background: radial-gradient(circle at 50% -10%, var(--bg-mid), var(--bg-deep) 70%);
   }
-  #app{ display:flex; flex-direction:column; align-items:center; height:100%; padding:10px 8px; gap:8px; }
+  #app{ display:flex; flex-direction:column; align-items:center; height:100%; padding:8px 6px; gap:6px; box-sizing:border-box; }
 
   /* ---- Menu ---- */
-  #menuScreen{ display:flex; flex-direction:column; align-items:center; gap:16px; width:100%; max-width:560px; margin-top:4vh; }
-  #menuScreen h1{ margin:0; font-size:26px; letter-spacing:3px; font-weight:800; color:var(--accent); }
-  #menuScreen p.sub{ margin:0; font-size:12px; color:var(--ink-dim); }
-  #cardGrid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; width:100%; padding:0 6px; }
+  #menuScreen{
+    display:flex; flex-direction:column; align-items:center;
+    gap:14px; width:100%; max-width:640px; margin-top:2vh; flex:1;
+  }
+  #menuScreen h1{ margin:0; font-size:clamp(24px,6vw,32px); letter-spacing:3px; font-weight:800; color:var(--accent); }
+  #menuScreen p.sub{ margin:0; font-size:14px; color:var(--ink-dim); }
+  #cardGrid{
+    display:grid; grid-template-columns:1fr 1fr; gap:10px;
+    width:100%; padding:0 4px; flex:1; align-content:stretch;
+  }
   .card{
     background:linear-gradient(180deg,var(--panel),#241a10);
-    border:1px solid rgba(255,255,255,.08);
-    border-radius:14px; padding:16px 10px; text-align:center; cursor:pointer;
-    box-shadow:0 4px 10px rgba(0,0,0,.35);
+    border:1px solid rgba(255,255,255,.1);
+    border-radius:16px; padding:20px 12px; text-align:center; cursor:pointer;
+    box-shadow:0 4px 14px rgba(0,0,0,.4);
     transition:transform .15s, box-shadow .15s;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    min-height:120px;
   }
   .card:active{ transform:scale(.97); }
-  .card:hover{ box-shadow:0 0 0 2px var(--accent), 0 6px 14px rgba(0,0,0,.4); }
-  .card .emoji{ font-size:34px; display:block; margin-bottom:6px; }
-  .card .name{ font-size:15px; font-weight:800; color:var(--ink); }
-  .card .desc{ font-size:11px; color:var(--ink-dim); margin-top:4px; line-height:1.4; }
+  .card:hover{ box-shadow:0 0 0 2px var(--accent), 0 8px 18px rgba(0,0,0,.45); }
+  .card .emoji{ font-size:clamp(36px,10vw,48px); display:block; margin-bottom:8px; line-height:1; }
+  .card .name{ font-size:clamp(16px,4vw,19px); font-weight:800; color:var(--ink); }
+  .card .desc{ font-size:clamp(12px,3vw,13px); color:var(--ink-dim); margin-top:6px; line-height:1.45; }
 
-  /* Mode select */
-  #modeScreen{ display:none; flex-direction:column; align-items:center; gap:14px; width:100%; max-width:420px; margin-top:6vh; }
-  #modeScreen h2{ margin:0; font-size:20px; color:var(--accent); font-weight:800; }
-  #modeScreen .modeBtns{ display:flex; flex-direction:column; gap:10px; width:100%; padding:0 12px; }
+  /* Mode select — big full-width cards */
+  #modeScreen{
+    display:none; flex-direction:column; align-items:stretch;
+    gap:0; width:100%; max-width:640px; margin-top:2vh;
+    padding:0 6px; box-sizing:border-box; flex:1;
+  }
+  #modeScreen h2{
+    margin:0 0 12px; font-size:clamp(18px,5vw,22px); color:var(--accent); font-weight:800;
+    text-align:center; letter-spacing:1px;
+  }
+  #modeScreen .modeBtns{
+    display:flex; flex-direction:column; gap:10px; width:100%; flex:1;
+  }
   .modeBtn{
-    font-family:inherit; font-size:15px; font-weight:700; color:var(--ink);
-    background:linear-gradient(180deg,var(--panel),#241a10);
-    border:1px solid rgba(255,255,255,.12); border-radius:12px;
-    padding:14px 16px; cursor:pointer; text-align:left;
-    box-shadow:0 3px 8px rgba(0,0,0,.3);
+    font-family:inherit; font-size:16px; font-weight:700; color:var(--ink);
+    background:linear-gradient(165deg, #3d2c1c 0%, #241a10 100%);
+    border:2px solid rgba(255,255,255,.12); border-radius:16px;
+    padding:0; cursor:pointer; text-align:left;
+    box-shadow:0 4px 14px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06);
+    display:flex; align-items:center; gap:14px;
+    min-height:100px; width:100%;
+    flex:1;
+    transition:transform .12s, box-shadow .12s, border-color .12s;
   }
   .modeBtn:active{ transform:scale(.98); }
-  .modeBtn .mTitle{ display:block; font-size:16px; margin-bottom:2px; }
-  .modeBtn .mDesc{ display:block; font-size:11px; color:var(--ink-dim); font-weight:500; }
-  .modeBtn.ai .mTitle{ color:var(--bad); }
-  .modeBtn.p2 .mTitle{ color:var(--good); }
-  #modeBack{
-    font-family:inherit; font-size:12px; font-weight:700; color:var(--ink-dim);
-    background:transparent; border:1px solid rgba(255,255,255,.12);
-    border-radius:999px; padding:6px 14px; cursor:pointer; margin-top:6px;
+  .modeBtn:hover{
+    border-color:rgba(232,163,61,.55);
+    box-shadow:0 0 0 2px rgba(232,163,61,.3), 0 6px 16px rgba(0,0,0,.45);
   }
-  .modeBtn.online .mTitle{ color:#6ec8ff; }
+  .modeBtn .mIcon{
+    flex-shrink:0; width:68px; height:68px; margin-left:14px;
+    border-radius:14px; display:flex; align-items:center; justify-content:center;
+    font-size:34px; background:rgba(0,0,0,.35);
+  }
+  .modeBtn .mText{ flex:1; padding:14px 16px 14px 0; min-width:0; }
+  .modeBtn .mTitle{ display:block; font-size:clamp(18px,4.5vw,22px); font-weight:800; margin-bottom:4px; line-height:1.2; }
+  .modeBtn .mDesc{ display:block; font-size:clamp(13px,3.2vw,15px); color:var(--ink-dim); font-weight:500; line-height:1.35; }
+  .modeBtn.ai .mIcon{ background:rgba(224,87,76,.22); }
+  .modeBtn.ai .mTitle{ color:#f07870; }
+  .modeBtn.p2 .mIcon{ background:rgba(95,191,106,.22); }
+  .modeBtn.p2 .mTitle{ color:#7fd48a; }
+  .modeBtn.online .mIcon{ background:rgba(110,200,255,.2); }
+  .modeBtn.online .mTitle{ color:#7ec8ff; }
+  #modeBack{
+    font-family:inherit; font-size:15px; font-weight:700; color:var(--ink-dim);
+    background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.16);
+    border-radius:999px; padding:14px 20px; cursor:pointer;
+    margin-top:14px; width:100%; text-align:center;
+  }
+  #modeBack:active{ background:rgba(255,255,255,.14); }
 
   /* Online lobby */
-  #onlineScreen{ display:none; flex-direction:column; align-items:center; gap:12px; width:100%; max-width:420px; margin-top:4vh; padding:0 12px; }
-  #onlineScreen h2{ margin:0; font-size:18px; color:var(--accent); font-weight:800; }
-  #onlineStatus{ font-size:12px; color:var(--ink-dim); min-height:18px; text-align:center; }
+  #onlineScreen{ display:none; flex-direction:column; align-items:center; gap:14px; width:100%; max-width:520px; margin-top:3vh; padding:0 10px; flex:1; }
+  #onlineScreen h2{ margin:0; font-size:clamp(18px,5vw,22px); color:var(--accent); font-weight:800; }
+  #onlineStatus{ font-size:14px; color:var(--ink-dim); min-height:20px; text-align:center; }
   #onlineStatus.ok{ color:var(--good); }
   #onlineStatus.err{ color:var(--bad); }
   #roomCodeBox{
-    font-size:28px; font-weight:900; letter-spacing:4px; color:var(--accent);
+    font-size:clamp(26px,8vw,34px); font-weight:900; letter-spacing:4px; color:var(--accent);
     background:rgba(0,0,0,.35); border:1px dashed rgba(232,163,61,.5);
-    border-radius:12px; padding:12px 20px; min-width:160px; text-align:center;
+    border-radius:14px; padding:16px 24px; min-width:180px; text-align:center;
   }
   #joinInput{
-    font-family:inherit; font-size:16px; font-weight:700; letter-spacing:2px;
-    text-align:center; width:100%; max-width:220px; padding:10px 12px;
-    border-radius:10px; border:1px solid rgba(255,255,255,.2);
+    font-family:inherit; font-size:18px; font-weight:700; letter-spacing:2px;
+    text-align:center; width:100%; max-width:280px; padding:14px 14px;
+    border-radius:12px; border:1px solid rgba(255,255,255,.2);
     background:rgba(0,0,0,.3); color:var(--ink); outline:none;
   }
-  .onlineActions{ display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
+  .onlineActions{ display:flex; flex-wrap:wrap; gap:10px; justify-content:center; width:100%; }
+  .onlineActions .ctlBtn{ flex:1; min-width:120px; padding:12px 16px; font-size:14px; }
   #netBadge{
     position:absolute; top:8px; right:8px; font-size:10px; font-weight:700;
     padding:3px 8px; border-radius:999px; background:rgba(0,0,0,.5);
@@ -95,36 +132,37 @@
   #gameScreen{ display:none; flex-direction:column; align-items:center; width:100%; height:100%; gap:8px; }
   #topbar{ display:flex; align-items:center; justify-content:space-between; width:100%; max-width:560px; }
   #backBtn{
-    font-family:inherit; font-size:12px; font-weight:700; color:var(--ink);
+    font-family:inherit; font-size:13px; font-weight:700; color:var(--ink);
     background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.15);
-    border-radius:999px; padding:6px 12px; cursor:pointer;
+    border-radius:999px; padding:8px 14px; cursor:pointer;
   }
-  #gameTitle{ font-size:15px; font-weight:800; color:var(--accent); }
-  #turnInfo{ font-size:12px; font-weight:700; padding:4px 12px; border-radius:999px; background:rgba(255,255,255,.08); min-width:96px; text-align:center; }
+  #gameTitle{ font-size:16px; font-weight:800; color:var(--accent); }
+  #turnInfo{ font-size:13px; font-weight:700; padding:6px 14px; border-radius:999px; background:rgba(255,255,255,.08); min-width:110px; text-align:center; }
   #turnInfo.you{ color:var(--good); }
   #turnInfo.ai{ color:var(--bad); }
 
-  #boardWrap{ position:relative; width:min(84vmin,520px); height:min(84vmin,520px); flex-shrink:0; }
+  #boardWrap{ position:relative; width:min(88vmin,560px); height:min(88vmin,560px); flex-shrink:0; }
   canvas{ width:100%; height:100%; display:block; touch-action:none; cursor:pointer; border-radius:10px; }
 
-  #controls{ display:flex; gap:8px; }
+  #controls{ display:flex; gap:10px; }
   .ctlBtn{
-    font-family:inherit; font-size:12px; font-weight:700; color:#4a2f0c;
+    font-family:inherit; font-size:14px; font-weight:700; color:#4a2f0c;
     background:linear-gradient(180deg,#ffe373,#f6b93b); border:2px solid #b9781a;
-    border-radius:999px; padding:7px 16px; cursor:pointer; box-shadow:0 2px 0 rgba(0,0,0,.25);
+    border-radius:999px; padding:10px 20px; cursor:pointer; box-shadow:0 2px 0 rgba(0,0,0,.25);
   }
   .ctlBtn:active{ transform:translateY(1px); box-shadow:none; }
   .ctlBtn.secondary{ background:linear-gradient(180deg,#d9d9d9,#aaa); border-color:#777; color:#222; }
 
-  #overlay{ position:absolute; inset:0; display:none; align-items:center; justify-content:center; flex-direction:column; gap:12px; background:rgba(10,8,6,.72); border-radius:10px; text-align:center; padding:14px; }
+  #overlay{ position:absolute; inset:0; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(10,8,6,.72); border-radius:10px; text-align:center; padding:16px; }
   #overlay.show{ display:flex; }
-  #overlayText{ font-size:20px; font-weight:900; color:var(--accent); text-shadow:0 2px 6px rgba(0,0,0,.6); white-space:pre-line; }
-  #overlayBtns{ display:flex; gap:8px; }
+  #overlayText{ font-size:22px; font-weight:900; color:var(--accent); text-shadow:0 2px 6px rgba(0,0,0,.6); white-space:pre-line; }
+  #overlayBtns{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
   #hint{ font-size:11px; color:var(--ink-dim); text-align:center; max-width:520px; margin:0; }
   #aiThinking{ font-size:11px; color:var(--bad); min-height:14px; }
   @media (max-width:420px){
-    #menuScreen h1{ font-size:21px; }
-    .card .emoji{ font-size:28px; }
+    .card{ min-height:110px; padding:16px 8px; }
+    .modeBtn{ min-height:88px; }
+    .modeBtn .mIcon{ width:56px; height:56px; font-size:28px; margin-left:10px; }
   }
 </style>
 </head>
@@ -146,16 +184,25 @@
     <h2 id="modeGameName">게임</h2>
     <div class="modeBtns">
       <button class="modeBtn ai" data-mode="ai">
-        <span class="mTitle">🤖 컴퓨터와 대결</span>
-        <span class="mDesc">AI와 1:1로 플레이합니다</span>
+        <span class="mIcon">🤖</span>
+        <span class="mText">
+          <span class="mTitle">컴퓨터와 대결</span>
+          <span class="mDesc">AI와 1:1로 플레이</span>
+        </span>
       </button>
       <button class="modeBtn p2" data-mode="p2">
-        <span class="mTitle">👥 2인 플레이 (같은 기기)</span>
-        <span class="mDesc">한 화면에서 두 명이 번갈아 플레이</span>
+        <span class="mIcon">👥</span>
+        <span class="mText">
+          <span class="mTitle">2인 플레이</span>
+          <span class="mDesc">같은 기기 · 번갈아 두기</span>
+        </span>
       </button>
       <button class="modeBtn online" data-mode="online">
-        <span class="mTitle">🌐 온라인 멀티플레이</span>
-        <span class="mDesc">방 코드로 친구와 실시간 대결 (P2P)</span>
+        <span class="mIcon">🌐</span>
+        <span class="mText">
+          <span class="mTitle">온라인 멀티</span>
+          <span class="mDesc">방 코드로 친구와 실시간</span>
+        </span>
       </button>
     </div>
     <button id="modeBack">← 게임 선택으로</button>
