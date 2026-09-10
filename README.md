@@ -177,6 +177,9 @@
       <div class="card" data-game="baduk"><span class="emoji">⚫</span><div class="name">바둑</div><div class="desc">9×9 · 상대 돌을 에워싸<br>더 넓은 집을 차지하기</div></div>
       <div class="card" data-game="janggi"><span class="emoji">🀄</span><div class="name">장기</div><div class="desc">상대 궁(장군)을<br>먼저 잡기</div></div>
       <div class="card" data-game="omok"><span class="emoji">⚫⚪</span><div class="name">오목</div><div class="desc">15×15 · 가로·세로·대각선<br>5개를 먼저 잇기</div></div>
+      <div class="card" data-game="chess"><span class="emoji">♞</span><div class="name">체스</div><div class="desc">기물을 움직여 상대<br>킹을 먼저 잡기</div></div>
+      <div class="card" data-game="connect4"><span class="emoji">🔴🟡</span><div class="name">커넥트4</div><div class="desc">말을 떨어뜨려 4개를<br>먼저 연결하기</div></div>
+      <div class="card" data-game="rhythm"><span class="emoji">🎵</span><div class="name">리듬게임</div><div class="desc">판정선에 닿는 노트를<br>맞춰 콤보 쌓기 · 1인용</div></div>
     </div>
   </div>
 
@@ -306,7 +309,8 @@ let current = null;
 let selectedGame = null;
 let playMode = 'ai'; // 'ai' | 'p2' | 'online'
 
-const GAME_NAMES = { alkkagi:'알까기', baduk:'바둑', janggi:'장기', omok:'오목' };
+const GAME_NAMES = { alkkagi:'알까기', baduk:'바둑', janggi:'장기', omok:'오목', chess:'체스', connect4:'커넥트4', rhythm:'리듬게임' };
+const SOLO_ONLY = new Set(['rhythm']);
 
 function setTurnInfo(text, who){
   turnInfoEl.textContent = text;
@@ -470,7 +474,11 @@ function backToMode(){
 }
 
 document.querySelectorAll('.card').forEach(c=>{
-  c.addEventListener('click', ()=> showModeSelect(c.getAttribute('data-game')));
+  c.addEventListener('click', ()=> {
+    const key = c.getAttribute('data-game');
+    if(SOLO_ONLY.has(key)) launch(key, 'solo');
+    else showModeSelect(key);
+  });
 });
 document.querySelectorAll('#modeScreen .modeBtn').forEach(b=>{
   b.addEventListener('click', ()=> {
@@ -510,6 +518,7 @@ document.getElementById('backBtn').addEventListener('click', ()=>{
     onlineScreen.style.display = 'none';
     modeScreen.style.display = 'flex';
   } else if(modeScreen.style.display === 'flex') backToMenu();
+  else if(current && SOLO_ONLY.has(current.key)) backToMenu();
   else backToMode();
 });
 document.getElementById('menuBtn2').addEventListener('click', backToMenu);
@@ -531,6 +540,13 @@ function getPos(evt){
 function onDown(e){ if(current && current.onDown){ current.onDown(getPos(e)); e.preventDefault(); } }
 function onMove(e){ if(current && current.onMove){ current.onMove(getPos(e)); e.preventDefault(); } }
 function onUp(e){ if(current && current.onUp){ current.onUp(getPos(e)); e.preventDefault(); } }
+function onKeyDown(e){
+  if(current && current.onKeyDown){
+    const handled = current.onKeyDown(e.key);
+    if(handled) e.preventDefault();
+  }
+}
+window.addEventListener('keydown', onKeyDown);
 canvas.addEventListener('mousedown',onDown);
 window.addEventListener('mousemove',onMove);
 window.addEventListener('mouseup',onUp);
@@ -552,6 +568,9 @@ function makeGame(key, mode){
   if(key==='baduk') return BadukGame(mode);
   if(key==='omok') return OmokGame(mode);
   if(key==='janggi') return JanggiGame(mode);
+  if(key==='chess') return ChessGame(mode);
+  if(key==='connect4') return Connect4Game(mode);
+  if(key==='rhythm') return RhythmGame(mode);
 }
 
 /* =========================================================
@@ -1447,6 +1466,500 @@ function JanggiGame(mode){
     }
     if(piece && piece.side===turn){ sel=[r,c]; legalDests=genMoves(r,c); }
     else { sel=null; legalDests=[]; }
+  };
+  return G;
+}
+
+/* =========================================================
+   5) CHESS
+   ========================================================= */
+function ChessGame(mode){
+  const isP2 = mode === 'p2';
+  const isOnline = mode === 'online';
+  const amHost = isOnline ? Net.isHost : true;
+  const mySide = isOnline ? (amHost ? 'white' : 'black') : 'white';
+  const G = { key:'chess' };
+  const N=8, PAD=40, BS=W-PAD*2, CELL=BS/N, BX=PAD, BY=PAD;
+  let board, turn, gameOver, locked, sel, legalDests;
+
+  function inB(r,c){ return r>=0&&r<N&&c>=0&&c<N; }
+  function pieceAt(r,c){ return board[r][c]; }
+
+  function initBoard(){
+    const b=Array.from({length:N},()=>new Array(N).fill(null));
+    const back=['rook','knight','bishop','queen','king','bishop','knight','rook'];
+    for(let c=0;c<N;c++){
+      b[0][c] = {type:back[c], side:'black'};
+      b[1][c] = {type:'pawn', side:'black'};
+      b[6][c] = {type:'pawn', side:'white'};
+      b[7][c] = {type:back[c], side:'white'};
+    }
+    return b;
+  }
+
+  function slide(r,c,side,dirs){
+    const moves=[];
+    for(const [dr,dc] of dirs){
+      let nr=r+dr,nc=c+dc;
+      while(inB(nr,nc)){
+        const p=pieceAt(nr,nc);
+        if(!p){ moves.push([nr,nc]); }
+        else { if(p.side!==side) moves.push([nr,nc]); break; }
+        nr+=dr; nc+=dc;
+      }
+    }
+    return moves;
+  }
+  function genRook(r,c,side){ return slide(r,c,side,[[1,0],[-1,0],[0,1],[0,-1]]); }
+  function genBishop(r,c,side){ return slide(r,c,side,[[1,1],[1,-1],[-1,1],[-1,-1]]); }
+  function genQueen(r,c,side){ return genRook(r,c,side).concat(genBishop(r,c,side)); }
+  function genKnight(r,c,side){
+    const deltas=[[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]];
+    const moves=[];
+    for(const [dr,dc] of deltas){
+      const nr=r+dr,nc=c+dc; if(!inB(nr,nc)) continue;
+      const p=pieceAt(nr,nc); if(!p||p.side!==side) moves.push([nr,nc]);
+    }
+    return moves;
+  }
+  function genKing(r,c,side){
+    const moves=[];
+    for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++){
+      if(dr===0&&dc===0) continue;
+      const nr=r+dr,nc=c+dc; if(!inB(nr,nc)) continue;
+      const p=pieceAt(nr,nc); if(!p||p.side!==side) moves.push([nr,nc]);
+    }
+    return moves;
+  }
+  function genPawn(r,c,side){
+    const moves=[];
+    const fwd = side==='white' ? -1 : 1;
+    const startRow = side==='white' ? 6 : 1;
+    const nr1=r+fwd;
+    if(inB(nr1,c) && !pieceAt(nr1,c)){
+      moves.push([nr1,c]);
+      const nr2=r+fwd*2;
+      if(r===startRow && !pieceAt(nr2,c)) moves.push([nr2,c]);
+    }
+    for(const dc of [-1,1]){
+      const nr=r+fwd, nc=c+dc;
+      if(inB(nr,nc)){ const p=pieceAt(nr,nc); if(p && p.side!==side) moves.push([nr,nc]); }
+    }
+    return moves;
+  }
+  function genMoves(r,c){
+    const p=pieceAt(r,c); if(!p) return [];
+    switch(p.type){
+      case 'rook': return genRook(r,c,p.side);
+      case 'bishop': return genBishop(r,c,p.side);
+      case 'queen': return genQueen(r,c,p.side);
+      case 'knight': return genKnight(r,c,p.side);
+      case 'king': return genKing(r,c,p.side);
+      case 'pawn': return genPawn(r,c,p.side);
+    }
+    return [];
+  }
+
+  const GLYPH = {
+    white:{king:'♔',queen:'♕',rook:'♖',bishop:'♗',knight:'♘',pawn:'♙'},
+    black:{king:'♚',queen:'♛',rook:'♜',bishop:'♝',knight:'♞',pawn:'♟'}
+  };
+  const VALUE = {king:0,queen:9,rook:5,bishop:3,knight:3,pawn:1};
+
+  function updateTurnUI(){
+    if(isOnline){
+      if(turn===mySide) setTurnInfo('내 차례 ('+(mySide==='white'?'백':'흑')+')','you');
+      else setTurnInfo('상대 차례','opp');
+    } else if(isP2){
+      if(turn==='white') setTurnInfo('P1 차례 (백)','you');
+      else setTurnInfo('P2 차례 (흑)','p2');
+    } else setTurnInfo(turn==='white'?'내 차례 (백)':'AI 차례 (흑)', turn==='white'?'you':'ai');
+  }
+
+  G.init=function(){
+    if(isOnline) gameTitleEl.textContent='체스 · 온라인';
+    else if(isP2) gameTitleEl.textContent='체스 · 2인';
+    else gameTitleEl.textContent='체스';
+    if(isOnline) hintEl.textContent=(amHost?'당신=백':'당신=흑')+' · 기물을 선택 후 이동. 상대 킹을 잡으면 승리! (체크/체크메이트 판정은 단순화)';
+    else if(isP2) hintEl.textContent='기물을 눌러 선택한 뒤 이동하세요. P1(백)/P2(흑). 상대 킹을 잡으면 승리!';
+    else hintEl.textContent='기물을 눌러 선택한 뒤, 표시된 칸으로 이동하세요. 상대 킹을 잡으면 승리! (체크/체크메이트 판정은 단순화되어 있습니다)';
+    board=initBoard();
+    turn='white'; gameOver=false; locked=false; sel=null; legalDests=[];
+    updateTurnUI();
+    controlsEl.innerHTML='';
+    if(isOnline){
+      Net.on('move', (msg)=>{
+        if(gameOver) return;
+        const ended=applyMove(msg.from,msg.to);
+        if(!ended){ turn=turn==='white'?'black':'white'; updateTurnUI(); }
+      });
+    }
+  };
+
+  function applyMove(from,to){
+    const p=board[from[0]][from[1]];
+    if(!p) return false;
+    const captured=board[to[0]][to[1]];
+    board[to[0]][to[1]]=p; board[from[0]][from[1]]=null;
+    if(p.type==='pawn'){
+      if((p.side==='white'&&to[0]===0)||(p.side==='black'&&to[0]===N-1)) p.type='queen';
+    }
+    if(captured && captured.type==='king'){
+      gameOver=true;
+      if(isOnline) showOverlay((p.side===mySide?'나':'상대')+' 승리!');
+      else if(isP2) showOverlay((p.side==='white'?'플레이어1 (백)':'플레이어2 (흑)')+' 승리!');
+      else showOverlay((p.side==='white'?'나(백)':'AI(흑)')+' 승리!');
+      setTurnInfo('게임 종료','');
+      return true;
+    }
+    return false;
+  }
+
+  function aiMove(){
+    if(gameOver||isP2||isOnline) return;
+    let best=null,bestScore=-Infinity;
+    for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+      const p=board[r][c]; if(!p||p.side!=='black') continue;
+      const dests=genMoves(r,c);
+      for(const d of dests){
+        const target=board[d[0]][d[1]];
+        let score = target?VALUE[target.type]*10:0;
+        score += rand(0,3);
+        if(p.type==='pawn') score += d[0]*0.3;
+        if(score>bestScore){ bestScore=score; best={from:[r,c],to:d}; }
+      }
+    }
+    locked=false;
+    if(!best) return;
+    const ended=applyMove(best.from,best.to);
+    if(!ended){ turn='white'; updateTurnUI(); }
+  }
+
+  G.step=function(){};
+  G.render=function(){
+    drawWoodFrame();
+    for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+      const x=BX+c*CELL, y=BY+r*CELL;
+      ctx.fillStyle = (r+c)%2===0 ? '#f2d9a8' : '#c99a5c';
+      ctx.fillRect(x,y,CELL,CELL);
+    }
+    ctx.strokeStyle='rgba(90,54,22,.9)'; ctx.lineWidth=3; ctx.strokeRect(BX,BY,N*CELL,N*CELL);
+    if(sel){
+      const x=BX+sel[1]*CELL, y=BY+sel[0]*CELL;
+      ctx.fillStyle='rgba(232,163,61,.35)'; ctx.fillRect(x,y,CELL,CELL);
+    }
+    for(const d of legalDests){
+      const x=BX+d[1]*CELL+CELL/2, y=BY+d[0]*CELL+CELL/2;
+      ctx.beginPath(); ctx.arc(x,y,7,0,Math.PI*2); ctx.fillStyle='rgba(95,191,106,.85)'; ctx.fill();
+    }
+    for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+      const p=board[r][c]; if(!p) continue;
+      const x=BX+c*CELL+CELL/2, y=BY+r*CELL+CELL/2;
+      ctx.font=(CELL*0.68)+'px "Apple SD Gothic Neo",sans-serif';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillStyle = p.side==='white' ? '#f7f2e6' : '#1c1c1c';
+      ctx.strokeStyle = p.side==='white' ? 'rgba(0,0,0,.5)' : 'rgba(255,255,255,.35)';
+      ctx.lineWidth=1.4;
+      ctx.fillText(GLYPH[p.side][p.type], x, y+2);
+      ctx.strokeText(GLYPH[p.side][p.type], x, y+2);
+    }
+  };
+  G.onDown=function(p){
+    if(gameOver||locked) return;
+    if(isOnline){ if(turn!==mySide) return; }
+    else if(!isP2 && turn!=='white') return;
+    const c=Math.floor((p.x-BX)/CELL), r=Math.floor((p.y-BY)/CELL);
+    if(!inB(r,c)) return;
+    const piece=board[r][c];
+    if(sel){
+      const isDest=legalDests.some(d=>d[0]===r&&d[1]===c);
+      if(isDest){
+        const from=sel.slice();
+        const ended=applyMove(from,[r,c]);
+        sel=null; legalDests=[];
+        if(!ended){
+          turn = turn==='white'?'black':'white';
+          updateTurnUI();
+          if(isOnline) Net.send({type:'move',from,to:[r,c]});
+          else if(!isP2){ locked=true; setTimeout(aiMove,600); }
+        } else if(isOnline){
+          Net.send({type:'move',from,to:[r,c]});
+        }
+        return;
+      }
+    }
+    if(piece && piece.side===turn){ sel=[r,c]; legalDests=genMoves(r,c); }
+    else { sel=null; legalDests=[]; }
+  };
+  return G;
+}
+
+/* =========================================================
+   6) CONNECT 4
+   ========================================================= */
+function Connect4Game(mode){
+  const isP2 = mode === 'p2';
+  const isOnline = mode === 'online';
+  const amHost = isOnline ? Net.isHost : true;
+  const myColor = isOnline ? (amHost ? 1 : 2) : 1;
+  const G = { key:'connect4' };
+  const COLS=7, ROWS=6, PAD=30;
+  const availW=W-PAD*2, availH=H-PAD*2;
+  const CELL=Math.min(availW/COLS, availH/ROWS);
+  const BW=CELL*COLS, BH=CELL*ROWS;
+  const BX=(W-BW)/2, BY=PAD+(availH-BH)/2;
+  const RAD=CELL*0.38;
+  let board, turn, gameOver, locked, drop;
+
+  function emptyBoard(){ return Array.from({length:ROWS},()=>new Array(COLS).fill(0)); }
+  function lowestEmptyRow(b,col){
+    for(let r=ROWS-1;r>=0;r--) if(b[r][col]===0) return r;
+    return -1;
+  }
+  function checkWinAt(b,r,c,color){
+    const dirs=[[0,1],[1,0],[1,1],[1,-1]];
+    for(const [dr,dc] of dirs){
+      let cnt=1;
+      let rr=r+dr,cc=c+dc;
+      while(rr>=0&&rr<ROWS&&cc>=0&&cc<COLS&&b[rr][cc]===color){cnt++;rr+=dr;cc+=dc;}
+      rr=r-dr;cc=c-dc;
+      while(rr>=0&&rr<ROWS&&cc>=0&&cc<COLS&&b[rr][cc]===color){cnt++;rr-=dr;cc-=dc;}
+      if(cnt>=4) return true;
+    }
+    return false;
+  }
+  function boardFull(b){ for(let c=0;c<COLS;c++) if(b[0][c]===0) return false; return true; }
+
+  function updateTurnUI(){
+    if(isOnline){
+      if(turn===myColor) setTurnInfo('내 차례 ('+(myColor===1?'빨강':'노랑')+')','you');
+      else setTurnInfo('상대 차례','opp');
+    } else if(isP2){
+      if(turn===1) setTurnInfo('P1 차례 (빨강)','you');
+      else setTurnInfo('P2 차례 (노랑)','p2');
+    } else setTurnInfo(turn===1?'내 차례 (빨강)':'AI 차례 (노랑)', turn===1?'you':'ai');
+  }
+
+  G.init=function(){
+    if(isOnline) gameTitleEl.textContent='커넥트4 · 온라인';
+    else if(isP2) gameTitleEl.textContent='커넥트4 · 2인';
+    else gameTitleEl.textContent='커넥트4';
+    if(isOnline) hintEl.textContent=(amHost?'당신=빨강':'당신=노랑')+' · 열을 눌러 말을 떨어뜨리세요. 4개를 먼저 연결하면 승리!';
+    else if(isP2) hintEl.textContent='열을 눌러 말을 떨어뜨리세요. P1(빨강)/P2(노랑). 4개를 먼저 연결하면 승리!';
+    else hintEl.textContent='열을 눌러 말을 떨어뜨리세요. 가로·세로·대각선 중 하나로 4개를 먼저 연결하면 승리!';
+    board=emptyBoard(); turn=1; gameOver=false; locked=false; drop=null;
+    updateTurnUI();
+    controlsEl.innerHTML='';
+    if(isOnline){
+      Net.on('move',(msg)=>{
+        if(gameOver) return;
+        startDrop(msg.col, msg.color, true);
+      });
+    }
+  };
+
+  function startDrop(col,color,fromNet){
+    if(gameOver||locked) return false;
+    const row=lowestEmptyRow(board,col);
+    if(row<0) return false;
+    locked=true;
+    drop={col,row,color,y:BY-CELL*0.5, targetY:BY+row*CELL+CELL/2};
+    if(!fromNet && isOnline) Net.send({type:'move',col,color});
+    return true;
+  }
+
+  function finishDrop(){
+    const {col,row,color}=drop;
+    board[row][col]=color;
+    drop=null; locked=false;
+    if(checkWinAt(board,row,col,color)){
+      gameOver=true;
+      if(isOnline) showOverlay((color===myColor?'나':'상대')+' 승리!');
+      else if(isP2) showOverlay((color===1?'플레이어1 (빨강)':'플레이어2 (노랑)')+' 승리!');
+      else showOverlay((color===1?'나(빨강)':'AI(노랑)')+' 승리!');
+      setTurnInfo('게임 종료','');
+      return;
+    }
+    if(boardFull(board)){ gameOver=true; showOverlay('무승부'); setTurnInfo('게임 종료',''); return; }
+    turn = turn===1?2:1;
+    updateTurnUI();
+    if(!isOnline && !isP2 && turn===2) setTimeout(aiMove,550);
+  }
+
+  function aiMove(){
+    if(gameOver||isP2||isOnline) return;
+    let best=null,bestScore=-Infinity;
+    for(let c=0;c<COLS;c++){
+      const row=lowestEmptyRow(board,c); if(row<0) continue;
+      let score=rand(0,3);
+      board[row][c]=2;
+      if(checkWinAt(board,row,c,2)) score+=1000;
+      board[row][c]=0;
+      board[row][c]=1;
+      if(checkWinAt(board,row,c,1)) score+=500;
+      board[row][c]=0;
+      const centerDist=Math.abs(c-3); score += (3-centerDist)*3;
+      if(score>bestScore){ bestScore=score; best=c; }
+    }
+    if(best===null) return;
+    startDrop(best,2);
+  }
+
+  G.step=function(){
+    if(drop){
+      drop.y += 14;
+      if(drop.y>=drop.targetY){ drop.y=drop.targetY; finishDrop(); }
+    }
+  };
+  G.render=function(){
+    drawWoodFrame();
+    ctx.fillStyle='#1a4fa0'; roundRect(ctx,BX-10,BY-10,BW+20,BH+20,14); ctx.fill();
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+      const x=BX+c*CELL+CELL/2, y=BY+r*CELL+CELL/2;
+      ctx.beginPath(); ctx.arc(x,y,RAD,0,Math.PI*2);
+      const v=board[r][c];
+      ctx.fillStyle = v===0 ? 'rgba(255,255,255,.12)' : (v===1?'#c0392b':'#e8c23d');
+      ctx.fill();
+      if(v!==0){ ctx.lineWidth=2; ctx.strokeStyle='rgba(0,0,0,.25)'; ctx.stroke(); }
+    }
+    if(drop){
+      const x=BX+drop.col*CELL+CELL/2;
+      ctx.beginPath(); ctx.arc(x,drop.y,RAD,0,Math.PI*2);
+      ctx.fillStyle = drop.color===1?'#c0392b':'#e8c23d'; ctx.fill();
+    }
+  };
+  G.onDown=function(p){
+    if(gameOver||locked) return;
+    if(isOnline){ if(turn!==myColor) return; }
+    else if(!isP2 && turn!==1) return;
+    if(p.x<BX||p.x>BX+BW) return;
+    const col=Math.floor((p.x-BX)/CELL);
+    if(col<0||col>=COLS) return;
+    startDrop(col, turn);
+  };
+  return G;
+}
+
+/* =========================================================
+   7) RHYTHM GAME (solo)
+   ========================================================= */
+function RhythmGame(mode){
+  const G = { key:'rhythm' };
+  const LANES=4, PAD=20;
+  const boardW=W-PAD*2, laneW=boardW/LANES;
+  const BX=PAD, BY=20;
+  const JUDGE_Y=H-140;
+  const SPEED=4.6, SPAWN_GAP=48, TOTAL_NOTES=28;
+  const HIT_WINDOW=42, GOOD_WINDOW=70;
+  const LANE_COLORS=['#e0574c','#5fbf6a','#e8a33d','#6ec8ff'];
+  const LANE_KEYS=['D','F','J','K'];
+  const KEY_MAP={ d:0, f:1, j:2, k:3 };
+  let notes, frame, spawned, score, combo, maxCombo, hits, misses, gameOver, flashLane, flashT;
+
+  function updateHud(){ setTurnInfo('점수 '+score+' · 콤보 '+combo, combo>0?'you':''); }
+
+  G.init=function(){
+    gameTitleEl.textContent='리듬게임';
+    hintEl.textContent='키보드 D · F · J · K 를 눌러 노트가 판정선에 닿는 순간 맞추세요! (탭으로도 플레이 가능)';
+    notes=[]; frame=0; spawned=0; score=0; combo=0; maxCombo=0; hits=0; misses=0; gameOver=false;
+    flashLane=-1; flashT=0;
+    controlsEl.innerHTML='';
+    updateHud();
+  };
+
+  function spawnNote(){
+    const lane=Math.floor(Math.random()*LANES);
+    notes.push({lane, y:BY, judged:false});
+    spawned++;
+  }
+
+  function endGame(){
+    gameOver=true;
+    const acc = TOTAL_NOTES ? hits/TOTAL_NOTES : 0;
+    let grade='D';
+    if(acc>=0.95) grade='S'; else if(acc>=0.8) grade='A'; else if(acc>=0.6) grade='B'; else if(acc>=0.4) grade='C';
+    showOverlay('결과: '+grade+'\n점수 '+score+' · 최대 콤보 '+maxCombo+'\n히트 '+hits+' / 미스 '+misses);
+    setTurnInfo('게임 종료','');
+  }
+
+  G.step=function(){
+    if(gameOver) return;
+    frame++;
+    if(spawned<TOTAL_NOTES && frame % SPAWN_GAP===0) spawnNote();
+    for(const n of notes){
+      if(n.judged) continue;
+      n.y += SPEED;
+      if(n.y > JUDGE_Y + GOOD_WINDOW){ n.judged=true; misses++; combo=0; }
+    }
+    notes = notes.filter(n=>!n.judged);
+    if(flashT>0) flashT--; else flashLane=-1;
+    updateHud();
+    if(spawned>=TOTAL_NOTES && notes.length===0) endGame();
+  };
+
+  G.render=function(){
+    drawWoodFrame();
+    for(let i=0;i<LANES;i++){
+      const x=BX+i*laneW;
+      ctx.fillStyle = i%2===0 ? 'rgba(255,255,255,.04)' : 'rgba(0,0,0,.12)';
+      ctx.fillRect(x,BY,laneW,H-BY-40);
+      if(flashLane===i && flashT>0){
+        ctx.fillStyle='rgba(255,255,255,.18)';
+        ctx.fillRect(x,BY,laneW,H-BY-40);
+      }
+    }
+    ctx.strokeStyle='rgba(232,163,61,.9)'; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.moveTo(BX,JUDGE_Y); ctx.lineTo(BX+boardW,JUDGE_Y); ctx.stroke();
+    for(let i=0;i<LANES;i++){
+      const x=BX+i*laneW+laneW/2;
+      ctx.beginPath(); ctx.arc(x,JUDGE_Y+34,17,0,Math.PI*2);
+      ctx.fillStyle = (flashLane===i&&flashT>0) ? 'rgba(232,163,61,.9)' : 'rgba(255,255,255,.12)';
+      ctx.fill();
+      ctx.strokeStyle='rgba(255,255,255,.35)'; ctx.lineWidth=1.5; ctx.stroke();
+      ctx.font='bold 16px "Apple SD Gothic Neo",sans-serif';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillStyle='#f3e8d6';
+      ctx.fillText(LANE_KEYS[i], x, JUDGE_Y+35);
+    }
+    for(const n of notes){
+      const x=BX+n.lane*laneW+laneW/2;
+      roundRect(ctx, x-laneW*0.36, n.y-14, laneW*0.72, 28, 8);
+      ctx.fillStyle=LANE_COLORS[n.lane]; ctx.fill();
+    }
+    ctx.font='bold 22px "Apple SD Gothic Neo",sans-serif';
+    ctx.textBaseline='alphabetic';
+    ctx.fillStyle='#f3e8d6';
+    ctx.textAlign='left'; ctx.fillText('점수 '+score, BX, 44);
+    ctx.textAlign='right'; ctx.fillText('콤보 '+combo, BX+boardW, 44);
+  };
+
+  function hitLane(lane){
+    if(gameOver || lane<0 || lane>=LANES) return;
+    flashLane=lane; flashT=8;
+    let target=null,bestDist=Infinity;
+    for(const n of notes){
+      if(n.judged||n.lane!==lane) continue;
+      const d=Math.abs(n.y-JUDGE_Y);
+      if(d<bestDist){ bestDist=d; target=n; }
+    }
+    if(target && bestDist<=GOOD_WINDOW){
+      target.judged=true;
+      hits++;
+      score += bestDist<=HIT_WINDOW ? 100 : 50;
+      combo++;
+      if(combo>maxCombo) maxCombo=combo;
+    }
+  }
+  G.onDown=function(p){
+    if(gameOver) return;
+    if(p.x<BX||p.x>BX+boardW) return;
+    hitLane(Math.floor((p.x-BX)/laneW));
+  };
+  G.onKeyDown=function(key){
+    const lane=KEY_MAP[(key||'').toLowerCase()];
+    if(lane===undefined) return false;
+    hitLane(lane);
+    return true;
   };
   return G;
 }
